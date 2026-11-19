@@ -1,11 +1,11 @@
 /**
- * Shortly - Interactive Application Logic
- * Modern, responsive UI with real-time analytics, session history, and clipboard integrations.
+ * Shortly — Frontend Application Logic
+ * Clean, lightweight, and resilient interactions.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Storage ---
-    const STORAGE_KEY = 'shortly_links_history';
+    const STORAGE_KEY = 'shortly_history_v1';
     let historyLinks = loadHistory();
 
     // --- DOM Elements ---
@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabPanels = document.querySelectorAll('.tab-panel');
     const historyBadge = document.getElementById('history-badge');
+    const createFirstLink = document.getElementById('create-first-link');
 
     // Create Form Elements
     const shortenForm = document.getElementById('shorten-form');
@@ -41,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadQrBtn = document.getElementById('download-qr-btn');
     const inspectStatsBtn = document.getElementById('inspect-stats-btn');
 
-    // Analytics Form & Dashboard Elements
+    // Analytics Elements
     const statsForm = document.getElementById('stats-form');
     const statsCodeInput = document.getElementById('stats-code-input');
     const statsBtn = document.getElementById('stats-btn');
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // History Elements
     const historyList = document.getElementById('history-list');
+    const historyTableWrapper = document.getElementById('history-table-wrapper');
     const historyEmpty = document.getElementById('history-empty');
     const clearHistoryBtn = document.getElementById('clear-history-btn');
 
@@ -73,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHistoryBadge();
     renderHistoryList();
 
-    // --- Tab Switching ---
+    // --- Tab Navigation ---
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTab = btn.getAttribute('data-tab');
@@ -81,9 +83,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    if (createFirstLink) {
+        createFirstLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchTab('create-tab');
+            urlInput.focus();
+        });
+    }
+
     function switchTab(tabId) {
         tabBtns.forEach(b => {
-            b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
+            const isActive = b.getAttribute('data-tab') === tabId;
+            b.classList.toggle('active', isActive);
+            b.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
         tabPanels.forEach(p => {
             p.classList.toggle('active', p.id === tabId);
@@ -94,11 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Advanced Options Toggle ---
+    // --- Advanced Options Inline Disclosure ---
     let optionsExpanded = false;
     toggleOptionsBtn.addEventListener('click', () => {
         optionsExpanded = !optionsExpanded;
         toggleOptionsBtn.classList.toggle('expanded', optionsExpanded);
+        toggleOptionsBtn.setAttribute('aria-expanded', optionsExpanded ? 'true' : 'false');
         advancedOptions.classList.toggle('collapsed', !optionsExpanded);
     });
 
@@ -127,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const text = await navigator.clipboard.readText();
                 if (text) {
                     urlInput.value = text.trim();
-                    showToast('Pasted URL from clipboard');
+                    showToast('Pasted from clipboard');
                     urlInput.focus();
                 }
             } catch (err) {
@@ -146,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let rawUrl = urlInput.value.trim();
         if (!rawUrl) return;
 
-        // Auto-prefix http:// or https:// if protocol omitted
+        // Auto-prefix https:// if scheme is missing
         if (!/^https?:\/\//i.test(rawUrl)) {
             rawUrl = 'https://' + rawUrl;
             urlInput.value = rawUrl;
@@ -159,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
             payload.alias = alias;
         }
 
-        // Calculate expiration timestamp
         const expiryIso = computeExpiryIso();
         if (expiryIso) {
             payload.expiresAt = expiryIso;
@@ -177,11 +189,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (!res.ok) {
-                showError(shortenError, shortenErrorText, data.message || `Request failed (${res.status})`);
+                showError(shortenError, shortenErrorText, data.message || `Could not shorten link (${res.status})`);
                 return;
             }
 
-            // Populate success card
+            // Populate Result
             shortLinkAnchor.href = data.shortUrl;
             shortLinkAnchor.textContent = data.shortUrl;
             visitBtn.href = data.shortUrl;
@@ -190,23 +202,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.expiresAt) {
                 const expDate = new Date(data.expiresAt);
-                resultExpiryBadge.textContent = `Expires ${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                resultExpiryBadge.textContent = `Expires ${expDate.toLocaleDateString()}`;
             } else {
                 resultExpiryBadge.textContent = 'Never expires';
             }
 
-            // Attach inspect stats handler to this specific link
+            // Bind stats inspect button
             inspectStatsBtn.onclick = () => {
                 statsCodeInput.value = data.shortCode;
                 switchTab('analytics-tab');
                 fetchStats(data.shortCode);
             };
 
-            // Setup QR code
+            // Setup QR
             setupQrCode(data.shortUrl);
 
             shortenResult.classList.remove('hidden');
-            showToast('Short link created successfully!');
+            showToast('Short link created');
 
             // Save to Session History
             saveToHistory({
@@ -218,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
         } catch (err) {
-            showError(shortenError, shortenErrorText, 'Failed to connect to backend server. Make sure the application is running.');
+            showError(shortenError, shortenErrorText, 'Failed to connect to server. Check your network.');
         } finally {
             setLoading(shortenBtn, false);
         }
@@ -246,26 +258,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
-    // --- Copy Actions ---
+    // --- Copy Link ---
     copyBtn.addEventListener('click', async () => {
         const text = shortLinkAnchor.textContent;
         if (!text) return;
 
         try {
             await navigator.clipboard.writeText(text);
-            const copyLabel = copyBtn.querySelector('.copy-label');
-            const originalText = copyLabel ? copyLabel.textContent : 'Copy';
-            if (copyLabel) copyLabel.textContent = 'Copied!';
-            showToast('Link copied to clipboard!');
+            const copyLabel = copyBtn.querySelector('.copy-label') || copyBtn;
+            const originalText = copyLabel.textContent;
+            copyLabel.textContent = 'Copied';
+            showToast('Copied to clipboard');
             setTimeout(() => {
-                if (copyLabel) copyLabel.textContent = originalText;
-            }, 2000);
+                copyLabel.textContent = originalText;
+            }, 1800);
         } catch (err) {
-            showToast('Failed to copy text', true);
+            showToast('Failed to copy');
         }
     });
 
-    // --- QR Code Rendering ---
+    // --- QR Code ---
     qrToggleBtn.addEventListener('click', () => {
         qrDrawer.classList.toggle('hidden');
     });
@@ -273,10 +285,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupQrCode(textToEncode) {
         if (!qrCanvas) return;
         const ctx = qrCanvas.getContext('2d');
-        qrCanvas.width = 110;
-        qrCanvas.height = 110;
+        qrCanvas.width = 100;
+        qrCanvas.height = 100;
 
-        // Use public QR generator image piped to canvas for high quality
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
@@ -286,36 +297,35 @@ document.addEventListener('DOMContentLoaded', () => {
         img.onerror = () => {
             drawFallbackQr(ctx, qrCanvas.width, qrCanvas.height);
         };
-        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(textToEncode)}&color=090a10&bgcolor=ffffff`;
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(textToEncode)}&color=1c1917&bgcolor=ffffff`;
 
         downloadQrBtn.onclick = () => {
             try {
                 const link = document.createElement('a');
-                link.download = `shortly-qr-${Date.now()}.png`;
+                link.download = `shortly-${Date.now()}.png`;
                 link.href = qrCanvas.toDataURL('image/png');
                 link.click();
             } catch (err) {
-                showToast('Unable to export QR code', true);
+                showToast('Unable to export QR image');
             }
         };
     }
 
     function drawFallbackQr(ctx, w, h) {
-        // Geometric placeholder pattern if external image is blocked
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#1e1b4b';
-        ctx.fillRect(10, 10, 30, 30);
-        ctx.fillRect(w - 40, 10, 30, 30);
-        ctx.fillRect(10, h - 40, 30, 30);
+        ctx.fillStyle = '#1c1917';
+        ctx.fillRect(8, 8, 26, 26);
+        ctx.fillRect(w - 34, 8, 26, 26);
+        ctx.fillRect(8, h - 34, 26, 26);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(16, 16, 18, 18);
-        ctx.fillRect(w - 34, 16, 18, 18);
-        ctx.fillRect(16, h - 34, 18, 18);
-        ctx.fillStyle = '#4338ca';
-        ctx.fillRect(20, 20, 10, 10);
-        ctx.fillRect(w - 30, 20, 10, 10);
-        ctx.fillRect(20, h - 30, 10, 10);
+        ctx.fillRect(13, 13, 16, 16);
+        ctx.fillRect(w - 29, 13, 16, 16);
+        ctx.fillRect(13, h - 29, 16, 16);
+        ctx.fillStyle = '#1c1917';
+        ctx.fillRect(17, 17, 8, 8);
+        ctx.fillRect(w - 25, 17, 8, 8);
+        ctx.fillRect(17, h - 25, 8, 8);
     }
 
     // --- Analytics Inspection ---
@@ -324,7 +334,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let query = statsCodeInput.value.trim();
         if (!query) return;
 
-        // If user pasted a full link like http://localhost:8080/my-alias
         if (query.includes('/')) {
             query = query.split('/').pop();
         }
@@ -342,11 +351,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (!res.ok) {
-                showError(statsError, statsErrorText, data.message || `No link found for "${code}" (Status ${res.status})`);
+                showError(statsError, statsErrorText, data.message || `No link found for "${code}"`);
                 return;
             }
 
-            // Populate KPIs
             statTotalClicks.textContent = (data.totalClicks || 0).toLocaleString();
             statShortCode.textContent = data.shortCode;
             statOriginalUrl.textContent = data.originalUrl;
@@ -354,17 +362,13 @@ document.addEventListener('DOMContentLoaded', () => {
             statOriginalUrl.title = data.originalUrl;
             statVisitLink.href = `/${encodeURIComponent(data.shortCode)}`;
 
-            // Populate Devices Visual Progress Bars
             renderDeviceBreakdown(data.devices, data.totalClicks);
-
-            // Populate Daily Timeline
             renderDailyActivity(data.clicksPerDay);
 
             statsDashboard.classList.remove('hidden');
-            showToast('Analytics loaded');
 
         } catch (err) {
-            showError(statsError, statsErrorText, 'Failed to connect to backend service.');
+            showError(statsError, statsErrorText, 'Failed to fetch analytics from server.');
         } finally {
             setLoading(statsBtn, false);
         }
@@ -373,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDeviceBreakdown(devices, totalClicks) {
         devicesVisualList.innerHTML = '';
         const list = devices || [];
-        deviceCountSummary.textContent = `${list.length} Device${list.length === 1 ? '' : 's'}`;
+        deviceCountSummary.textContent = `${list.length} device${list.length === 1 ? '' : 's'}`;
 
         if (list.length === 0 || totalClicks === 0) {
             noDevicesMsg.classList.remove('hidden');
@@ -387,29 +391,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const percentage = totalClicks > 0 ? Math.round((count / totalClicks) * 100) : 0;
             const type = (item.device || 'OTHER').toUpperCase();
 
-            let fillClass = 'fill-other';
-            let iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
-
-            if (type.includes('DESKTOP')) {
-                fillClass = 'fill-desktop';
-                iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>';
-            } else if (type.includes('MOBILE')) {
-                fillClass = 'fill-mobile';
-                iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>';
-            } else if (type.includes('TABLET')) {
-                fillClass = 'fill-tablet';
-                iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>';
-            }
-
             const barDiv = document.createElement('div');
-            barDiv.className = 'bar-item';
+            barDiv.className = 'bar-row';
             barDiv.innerHTML = `
-                <div class="bar-meta">
-                    <span class="bar-name">${iconSvg} ${escapeHtml(type)}</span>
-                    <span class="bar-val">${count} (${percentage}%)</span>
+                <div class="bar-info">
+                    <span class="bar-label">${escapeHtml(type)}</span>
+                    <span class="bar-number">${count} (${percentage}%)</span>
                 </div>
                 <div class="bar-track">
-                    <div class="bar-fill ${fillClass}" style="width: ${percentage}%"></div>
+                    <div class="bar-progress" style="width: ${percentage}%"></div>
                 </div>
             `;
             devicesVisualList.appendChild(barDiv);
@@ -419,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDailyActivity(clicksPerDay) {
         daysVisualList.innerHTML = '';
         const list = clicksPerDay || [];
-        daysCountSummary.textContent = `${list.length} Day${list.length === 1 ? '' : 's'}`;
+        daysCountSummary.textContent = `${list.length} day${list.length === 1 ? '' : 's'}`;
 
         if (list.length === 0) {
             noDaysMsg.classList.remove('hidden');
@@ -430,16 +420,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         list.forEach(item => {
             const row = document.createElement('div');
-            row.className = 'activity-row';
+            row.className = 'daily-row';
             row.innerHTML = `
-                <span class="activity-date">${escapeHtml(item.date)}</span>
-                <span class="activity-badge">${item.count} click${item.count === 1 ? '' : 's'}</span>
+                <span class="daily-date">${escapeHtml(item.date)}</span>
+                <span class="daily-count">${item.count} click${item.count === 1 ? '' : 's'}</span>
             `;
             daysVisualList.appendChild(row);
         });
     }
 
-    // --- Session History Management ---
+    // --- Session History ---
     function loadHistory() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
@@ -452,8 +442,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveToHistory(item) {
         historyLinks = historyLinks.filter(l => l.shortCode !== item.shortCode);
         historyLinks.unshift(item);
-        if (historyLinks.length > 20) {
-            historyLinks = historyLinks.slice(0, 20);
+        if (historyLinks.length > 25) {
+            historyLinks = historyLinks.slice(0, 25);
         }
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(historyLinks));
@@ -472,51 +462,55 @@ document.addEventListener('DOMContentLoaded', () => {
         historyList.innerHTML = '';
 
         if (historyLinks.length === 0) {
+            historyTableWrapper.classList.add('hidden');
             historyEmpty.classList.remove('hidden');
             clearHistoryBtn.classList.add('hidden');
             return;
         }
 
+        historyTableWrapper.classList.remove('hidden');
         historyEmpty.classList.add('hidden');
         clearHistoryBtn.classList.remove('hidden');
 
         historyLinks.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'history-card';
-            card.innerHTML = `
-                <div class="history-main">
-                    <div class="history-code-row">
-                        <a href="${escapeHtml(item.shortUrl)}" target="_blank" class="history-short-link">${escapeHtml(item.shortUrl)}</a>
-                        <span class="badge neutral-badge">${item.expiresAt ? 'Expires' : 'Permanent'}</span>
+            const tr = document.createElement('tr');
+            const expiryText = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : 'Never';
+
+            tr.innerHTML = `
+                <td>
+                    <a href="${escapeHtml(item.shortUrl)}" target="_blank" class="table-link-mono">${escapeHtml(item.shortUrl)}</a>
+                </td>
+                <td>
+                    <span class="table-dest" title="${escapeHtml(item.originalUrl)}">${escapeHtml(item.originalUrl)}</span>
+                </td>
+                <td>
+                    <span class="table-expiry">${expiryText}</span>
+                </td>
+                <td style="text-align: right;">
+                    <div class="table-actions">
+                        <button type="button" class="btn btn-secondary btn-sm copy-hist-btn" data-url="${escapeHtml(item.shortUrl)}">Copy</button>
+                        <button type="button" class="btn btn-secondary btn-sm stats-hist-btn" data-code="${escapeHtml(item.shortCode)}">Stats</button>
                     </div>
-                    <div class="history-dest" title="${escapeHtml(item.originalUrl)}">Target: ${escapeHtml(item.originalUrl)}</div>
-                </div>
-                <div class="history-actions">
-                    <button type="button" class="history-icon-btn copy-hist-btn" data-url="${escapeHtml(item.shortUrl)}">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        <span>Copy</span>
-                    </button>
-                    <button type="button" class="history-icon-btn stats-hist-btn" data-code="${escapeHtml(item.shortCode)}">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                        <span>Stats</span>
-                    </button>
-                </div>
+                </td>
             `;
 
-            // Copy handler
-            card.querySelector('.copy-hist-btn').addEventListener('click', async (e) => {
+            // Copy Action
+            tr.querySelector('.copy-hist-btn').addEventListener('click', async (e) => {
                 const btn = e.currentTarget;
                 const url = btn.getAttribute('data-url');
                 try {
                     await navigator.clipboard.writeText(url);
-                    showToast('Link copied to clipboard!');
+                    const original = btn.textContent;
+                    btn.textContent = 'Copied';
+                    showToast('Copied to clipboard');
+                    setTimeout(() => { btn.textContent = original; }, 1500);
                 } catch (err) {
-                    showToast('Failed to copy', true);
+                    showToast('Failed to copy');
                 }
             });
 
-            // Inspect stats handler
-            card.querySelector('.stats-hist-btn').addEventListener('click', (e) => {
+            // Inspect Stats Action
+            tr.querySelector('.stats-hist-btn').addEventListener('click', (e) => {
                 const btn = e.currentTarget;
                 const code = btn.getAttribute('data-code');
                 statsCodeInput.value = code;
@@ -524,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchStats(code);
             });
 
-            historyList.appendChild(card);
+            historyList.appendChild(tr);
         });
     }
 
@@ -540,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Helper Utilities ---
+    // --- Utilities ---
     function setLoading(btn, isLoading) {
         if (!btn) return;
         btn.disabled = isLoading;
@@ -560,17 +554,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (container) container.classList.add('hidden');
     }
 
-    function showToast(message, isError = false) {
+    function showToast(message) {
         if (!toast || !toastText) return;
         if (toastTimeout) clearTimeout(toastTimeout);
 
         toastText.textContent = message;
-        toast.style.borderColor = isError ? 'var(--rose)' : 'var(--border-focus)';
         toast.classList.remove('hidden');
 
         toastTimeout = setTimeout(() => {
             toast.classList.add('hidden');
-        }, 2800);
+        }, 2200);
     }
 
     function escapeHtml(str) {

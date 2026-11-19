@@ -3,20 +3,23 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### STS ###
+### IDEs ###
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+### STS / Eclipse ###
 .apt_generated
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
 
 ### NetBeans ###
 /nbproject/private/
@@ -25,12 +28,21 @@ target/
 /nbdist/
 /__history/
 
-### VS Code ###
-.vscode/
-
-### OS ###
+### OS & Temporary Files ###
 .DS_Store
 Thumbs.db
+*.log
+*.tmp
+*.bak
+*.swp
+*~
 
-### Local Build Guide / Prompts ###
+### Local Environment & Secrets ###
+.env
+.env.*
+!.env.example
+
+### Local Notes & Documentation ###
 buildguide/
+INTERVIEW.md
+*.local

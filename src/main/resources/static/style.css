@@ -117,10 +117,6 @@ body {
     color: var(--text);
 }
 
-.nav-item-muted {
-    color: var(--text-light);
-}
-
 /* Hero Section (Left-aligned, Editorial) */
 .hero {
     margin-bottom: 2.5rem;
